@@ -60,7 +60,7 @@ create_ep(LocalOpts) ->
     create_ep(0, LocalOpts).
 
 create_ep(LocalPort, LocalOpts) ->
-    create_ep([{0,0,0,0}], LocalPort, LocalOpts).
+    create_ep([loopback], LocalPort, LocalOpts).
 
 -spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()]) ->
           {ok, ep()} |

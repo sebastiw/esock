@@ -24,7 +24,7 @@
 %% ---------------------------------------------------------------------------
 
 start_link(LocalAddrs, LocalPort, LocalOpts) ->
-    Protocol = maps:get(protocol, LocalOpts, sctp),
+    Protocol = proplists:get_value(protocol, LocalOpts, sctp),
     Name = {Protocol, LocalAddrs, LocalPort},
     gen_server:start_link({via, sock_reg, Name}, ?MODULE, [LocalAddrs, LocalPort, LocalOpts], []).
 
@@ -44,7 +44,7 @@ find_assoc(Ep, RemoteAddr, RemotePort) ->
 %% ---------------------------------------------------------------------------
 
 init([LocalAddrs, LocalPort, LocalOpts]) ->
-    Protocol = maps:get(protocol, LocalOpts, sctp),
+    Protocol = proplists:get_value(protocol, LocalOpts, sctp),
     {ok, Sock} = open_and_bind(LocalAddrs, LocalPort, LocalOpts, Protocol),
     State = #{socket => Sock,
               options => LocalOpts,
@@ -53,8 +53,8 @@ init([LocalAddrs, LocalPort, LocalOpts]) ->
     {ok, State, {continue, maybe_listen}}.
 
 handle_continue(maybe_listen, State) ->
-    Options = maps:get(options, State, #{}),
-    AC = case maps:get(accept, Options, undefined) of
+    Options = maps:get(options, State, []),
+    AC = case proplists:get_value(accept, Options) of
              {accept, N} when is_integer(N) ->
                  fun(_A, _P, C) -> C < N end;
              {accept, F} when is_function(F, 2) ->
@@ -73,7 +73,7 @@ handle_continue(maybe_listen, State) ->
                 ok ->
                     Parent = self(),
                     spawn_link(fun () -> server_recv(Sock, Parent) end),
-                    {noreply, State#{options => Options#{accept => AC}}}
+                    {noreply, State#{options => Options ++ [{accept, AC}]}}
             end
     end.
 
@@ -89,8 +89,8 @@ handle_cast(_What, State) ->
 
 handle_call({create_assoc, RemoteAddrs, RemotePort, AssocOpts}, _From, State) ->
     Sock = maps:get(socket, State),
-    LocalOpts = maps:get(options, State, #{}),
-    Opts = maps:merge(LocalOpts, AssocOpts),
+    LocalOpts = maps:get(options, State, []),
+    Opts = LocalOpts ++ AssocOpts,
     {ok, Pid} = sock_assoc:start_link(Sock, RemoteAddrs, RemotePort, Opts),
     Assocs = maps:get(assocs, State),
     {reply, {ok, Pid}, State#{assocs => [Pid|Assocs]}};

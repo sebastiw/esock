@@ -11,14 +11,18 @@ get_domain([{_, _, _, _} | _], _Opts) ->
     {ok, inet};
 get_domain([{_, _, _, _, _, _, _, _} | _], _Opts) ->
     {ok, inet6};
-get_domain([localhost | _], _Opts) ->
-    {ok, local}.
+get_domain([loopback | _], _Opts) ->
+    %% Actually this should be `{ok, local}`; but gen_sctp:open does
+    %% not accept that, even though documentation says it should.
+    {ok, inet};
+get_domain([_ | R], Opts) ->
+    get_domain(R, Opts).
 
 socket_address(Domain, LocalAddr, LocalPort) ->
     #{family => domain_to_family(Domain), addr => LocalAddr, port => LocalPort}.
 
 domain_to_family(local) ->
-    loopback;
+    inet;
 domain_to_family(Domain) ->
     Domain.
 

@@ -62,7 +62,7 @@ init(_) ->
 %% ---------------------------------------------------------------------------
 
 ep_spec([LocalAddrs, LocalPort, LocalOpts] = Args) ->
-    Proto = maps:get(protocol, LocalOpts, sctp),
+    Proto = proplists:get_value(protocol, LocalOpts, sctp),
     #{id => {Proto, LocalAddrs, LocalPort},
       start => {sock_ep, start_link, Args},
       restart => transient,

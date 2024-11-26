@@ -64,8 +64,10 @@ terminate(_What, _State) ->
 %% Helpers
 %% ---------------------------------------------------------------------------
 
-connect_async(Sock, Addrs, Port, _Opts) when ?USE_SOCKET ->
-    [socket:connect(Sock, A, Port) || A <- Addrs];
+-ifdef(USE_SOCKET).
+connect_async(Sock, Addrs, Port, _Opts) ->
+    [socket:connect(Sock, A, Port) || A <- Addrs].
+-else.
 connect_async(Sock, Addrs, Port, _Opts) ->
     Parent = self(),
     {ok, Domain} = sock_utils:get_domain(Addrs, _Opts),
@@ -81,4 +83,4 @@ client_loop(Sock, [SockAddr|SockAddrs], Parent) ->
             Parent ! Error,
             client_loop(Sock, SockAddrs ++ [SockAddr], Parent)
     end.
-
+-endif.

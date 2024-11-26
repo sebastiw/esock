@@ -104,14 +104,22 @@ terminate(_What, _State) ->
 %% Helpers
 %% ---------------------------------------------------------------------------
 
-open_and_bind(LocalAddrs, LocalPort, LocalOpts, Protocol) when ?USE_SOCKET ->
+-spec open_and_bind([inet:ip_address()], inet:port_number(), map(), socket:protocol()) ->
+          {ok, socket:socket() | gen_sctp:sctp_socket()} | {error, atom()}.
+-ifdef(USE_SOCKET).
+open_and_bind(LocalAddrs, LocalPort, LocalOpts, Protocol) ->
     {ok, Domain} = sock_utils:get_domain(LocalAddrs, LocalOpts),
     {ok, Sock} = socket:open(Domain, seqpacket, Protocol),
     %% OTP 27 socket-api does not seem to support multiple bound local addresses
     [LocalAddr|_] = LocalAddrs,
     Addr = sock_utils:socket_address(Domain, LocalAddr, LocalPort),
-    ok = socket:bind(Sock, Addr),
-    {ok, Sock};
+    case socket:bind(Sock, Addr) of
+        ok ->
+            {ok, Sock};
+        {error, Reason} ->
+            {error, Reason}
+    end.
+-else.
 open_and_bind(LocalAddrs, LocalPort, LocalOpts, sctp) ->
     {ok, Domain} = sock_utils:get_domain(LocalAddrs, LocalOpts),
     Addrs = [{ifaddr, sock_utils:socket_address(Domain, L, LocalPort)} || L <- LocalAddrs],
@@ -126,14 +134,22 @@ open_and_bind(LocalAddrs, LocalPort, LocalOpts, sctp) ->
         {error, Reason} ->
             {error, Reason}
     end.
+-endif.
 
-listen(Sock) when ?USE_SOCKET ->
-    socket:listen(Sock);
+-spec listen(socket:socket() | gen_sctp:sctp_socket()) -> ok | {error, term()}.
+-ifdef(USE_SOCKET).
+listen(Sock) ->
+    socket:listen(Sock).
+-else.
 listen(Sock) ->
     gen_sctp:listen(Sock, true).
+-endif.
 
-server_recv(_Sock, _Parent) when ?USE_SOCKET ->
-    ok;
+-spec server_recv(socket:socket() | gen_sctp:sctp_socket(), pid()) -> no_return().
+-ifdef(USE_SOCKET).
+server_recv(_Sock, _Parent) ->
+    ok.
+-else.
 server_recv(Sock, Parent) ->
     case gen_sctp:recv(Sock, infinity) of
         {ok, Msg} ->
@@ -142,3 +158,4 @@ server_recv(Sock, Parent) ->
             Parent ! {recv, Err}
     end,
     server_recv(Sock, Parent).
+-endif.

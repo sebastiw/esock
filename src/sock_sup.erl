@@ -8,7 +8,9 @@ Application wide supervisor of endpoint processes.
 %% API
 -export([start_link/0,
          start_child/3,
-         get_eps/0
+         get_eps/0,
+         get_ep/2,
+         find_assoc/4
         ]).
 
 %% Callbacks
@@ -38,6 +40,10 @@ get_ep(LocalAddr, LocalPort) ->
         [] -> {error, not_found};
         [C] -> {ok, C}
     end.
+
+find_assoc(_LocalAddr, _LocalPort, _RemoteAddr, _RemotePort) ->
+    %% TBD
+   {error, not_found}.
 
 %% ---------------------------------------------------------------------------
 %% Callbacks

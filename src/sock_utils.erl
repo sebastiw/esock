@@ -1,8 +1,11 @@
 -module(sock_utils).
 
 -export([get_domain/2,
-         socket_address/3
+         socket_address/3,
+         ip_in_subnet/2
         ]).
+
+-include_lib("eunit/include/eunit.hrl").
 
 get_domain([{_, _, _, _} | _], _Opts) ->
     {ok, inet};

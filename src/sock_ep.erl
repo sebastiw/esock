@@ -3,7 +3,9 @@
 
 %% API
 -export([start_link/3,
-         create_assoc/4
+         create_assoc/4,
+         get_assocs/1,
+         find_assoc/3
         ]).
 
 %% Callbacks
@@ -28,6 +30,14 @@ start_link(LocalAddrs, LocalPort, LocalOpts) ->
 
 create_assoc(Ep, RemoteAddr, RemotePort, AssocOpts) ->
     gen_server:call(Ep, {create_assoc, RemoteAddr, RemotePort, AssocOpts}).
+
+get_assocs(Ep) ->
+    %% TBD
+    gen_server:call(Ep, get_assocs).
+
+find_assoc(Ep, RemoteAddr, RemotePort) ->
+    %% TBD
+    gen_server:call(Ep, {find_assoc, RemoteAddr, RemotePort}).
 
 %% ---------------------------------------------------------------------------
 %% Callbacks

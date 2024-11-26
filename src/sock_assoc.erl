@@ -2,7 +2,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4
+-export([start_link/4,
+         get_paths/1
         ]).
 
 %% Callbacks
@@ -22,6 +23,10 @@
 
 start_link(Sock, LocalAddrs, LocalPort, LocalOpts) ->
     gen_server:start_link(?MODULE, [Sock, LocalAddrs, LocalPort, LocalOpts], []).
+
+get_paths(Assoc) ->
+    %% TBD
+    gen_server:call(Assoc, get_paths).
 
 %% ---------------------------------------------------------------------------
 %% Callbacks

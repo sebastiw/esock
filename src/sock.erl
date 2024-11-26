@@ -54,7 +54,7 @@ API for the sock application.
 %% ---------------------------------------------------------------------------
 
 create_ep() ->
-    create_ep(#{}).
+    create_ep([]).
 
 create_ep(LocalOpts) ->
     create_ep(0, LocalOpts).
@@ -89,7 +89,7 @@ get_ep(LocalAddr, LocalPort) ->
           {ok, [assoc()]} |
           {error, not_found}.
 get_assocs(Ep) ->
-    sock_assoc:get_assocs(Ep).
+    sock_ep:get_assocs(Ep).
 
 -spec get_paths(assoc()) ->
           {ok, [path()]} |
@@ -101,4 +101,4 @@ get_paths(Assoc) ->
           {ok, assoc()} |
           {error, not_found}.
 find_assoc(LocalAddr, LocalPort, RemoteAddr, RemotePort) ->
-    sock_assoc:find_assoc(LocalAddr, LocalPort, RemoteAddr, RemotePort).
+    sock_sup:find_assoc(LocalAddr, LocalPort, RemoteAddr, RemotePort).

@@ -55,11 +55,11 @@ init([LocalAddrs, LocalPort, LocalOpts]) ->
 handle_continue(maybe_listen, State) ->
     Options = maps:get(options, State, []),
     AC = case proplists:get_value(accept, Options) of
-             {accept, N} when is_integer(N) ->
+             N when is_integer(N) ->
                  fun(_A, _P, C) -> C < N end;
-             {accept, F} when is_function(F, 2) ->
+             F when is_function(F, 2) ->
                  fun(A, P, _C) -> F(A, P) end;
-             {accept, F} when is_function(F, 3) ->
+             F when is_function(F, 3) ->
                  F;
              undefined ->
                  undefined
@@ -94,6 +94,9 @@ handle_call({create_assoc, RemoteAddrs, RemotePort, AssocOpts}, _From, State) ->
     {ok, Pid} = sock_assoc:start_link(Sock, RemoteAddrs, RemotePort, Opts),
     Assocs = maps:get(assocs, State),
     {reply, {ok, Pid}, State#{assocs => [Pid|Assocs]}};
+handle_call(get_assocs, _From, State) ->
+    Assocs = maps:get(assocs, State),
+    {reply, {ok, Assocs}, State};
 handle_call(_What, _From, State) ->
     {reply, undefined, State}.
 

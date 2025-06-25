@@ -47,17 +47,17 @@ Setting up and managing connections via sockets.
 SCTP relationship
 ---
 flowchart TD
-    EP((Endpoint))
-    AS1((Association))
-    AS2((Association))
-    AS3((Association))
+    EP((Endpoint<br/>{Protocol, LocalIPs, LocalPort}))
+    AS1((Association<br/>{RemoteIPs1, RemotePort1}))
+    AS2((Association<br/>{RemoteIPs2, RemotePort2}))
+    AS3((Association<br/>{RemoteIPs3, RemotePort3}))
 
-    P1((Path))
-    P2((Path))
-    P3((Path))
-    P4((Path))
-    P5((Path))
-    P6((Path))
+    P1((Path<br>RemoteIP1_1))
+    P2((Path<br>RemoteIP1_2))
+    P3((Path<br>RemoteIP1_3))
+    P4((Path<br>RemoteIP2_1))
+    P5((Path<br>RemoteIP3_1))
+    P6((Path<br>RemoteIP3_2))
 
     EP-->AS1
     EP-->AS2
@@ -74,11 +74,17 @@ flowchart TD
 # Example
 
 ```erlang
+%% start application supervisor
 application:ensure_all_started(sock).
-{ok, EP} = sock:create_ep().
-sock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
-{ok, EP2} = sock:create_ep(30400, #{accept => {accept, 4}}).
 
+%% create a sctp ep on loopback interface with a free port
+{ok, EP} = sock:create_ep().
+
+%% connect sctp ep to remote address 127.0.0.1:30400
+sock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
+
+%% create another sctp ep which listen and accept for up to 4 clients
+{ok, EP2} = sock:create_ep(30400, #{accept => {accept, 4}}).
 ```
 
 # SCTP

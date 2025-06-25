@@ -53,6 +53,16 @@ API for the sock application.
 %% API
 %% ---------------------------------------------------------------------------
 
+-spec create_ep() ->
+          {ok, ep()} | {error, inet:posix()}.
+-spec create_ep(LocalOpts :: [local_opt()]) ->
+          {ok, ep()} | {error, inet:posix()}.
+-spec create_ep(LocalPort :: port_no(), LocalOpts :: [local_opt()]) ->
+          {ok, ep()} | {error, inet:posix()}.
+-spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()]) ->
+          {ok, ep()} |
+          {error, inet:posix()}.
+
 create_ep() ->
     create_ep([]).
 
@@ -62,9 +72,6 @@ create_ep(LocalOpts) ->
 create_ep(LocalPort, LocalOpts) ->
     create_ep([loopback], LocalPort, LocalOpts).
 
--spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()]) ->
-          {ok, ep()} |
-          {error, inet:posix()}.
 create_ep(LocalAddrs, LocalPort, LocalOpts) ->
     sock_sup:start_child(LocalAddrs, LocalPort, LocalOpts).
 

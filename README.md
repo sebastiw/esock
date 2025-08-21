@@ -47,17 +47,17 @@ Setting up and managing connections via sockets.
 SCTP relationship
 ---
 flowchart TD
-    EP((Endpoint<br/>{Protocol, LocalIPs, LocalPort}))
-    AS1((Association<br/>{RemoteIPs1, RemotePort1}))
-    AS2((Association<br/>{RemoteIPs2, RemotePort2}))
-    AS3((Association<br/>{RemoteIPs3, RemotePort3}))
+    EP(("Endpoint<br/>{Protocol, LocalIPs, LocalPort}"))
+    AS1(("Association<br/>{RemoteIPs1, RemotePort1}"))
+    AS2(("Association<br/>{RemoteIPs2, RemotePort2}"))
+    AS3(("Association<br/>{RemoteIPs3, RemotePort3}"))
 
-    P1((Path<br>RemoteIP1_1))
-    P2((Path<br>RemoteIP1_2))
-    P3((Path<br>RemoteIP1_3))
-    P4((Path<br>RemoteIP2_1))
-    P5((Path<br>RemoteIP3_1))
-    P6((Path<br>RemoteIP3_2))
+    P1(("Path<br>RemoteIP1_1"))
+    P2(("Path<br>RemoteIP1_2"))
+    P3(("Path<br>RemoteIP1_3"))
+    P4(("Path<br>RemoteIP2_1"))
+    P5(("Path<br>RemoteIP3_1"))
+    P6(("Path<br>RemoteIP3_2"))
 
     EP-->AS1
     EP-->AS2

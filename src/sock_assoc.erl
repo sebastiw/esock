@@ -52,7 +52,7 @@ handle_info({comm_up, S, SockAddr}, State) ->
     io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, {comm_up, S}]),
     {ok, Path} = sock_path:create_path(SockAddr),
     Paths = maps:get(paths, State),
-    {noreply, State#{path => [Path|Paths]}};
+    {noreply, State#{paths => [Path|Paths]}};
 handle_info(What, State) ->
     io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, What]),
     {noreply, State}.
@@ -61,7 +61,7 @@ handle_cast(_What, State) ->
     {noreply, State}.
 
 handle_call(get_paths, _From, State) ->
-    PathPids = maps:get(path, State),
+    PathPids = maps:get(paths, State),
     RPort = maps:get(remote_port, State),
     PAddrs = [sock_path:get_path(P) || P <- PathPids],
     Paths = {self(), PAddrs, RPort},

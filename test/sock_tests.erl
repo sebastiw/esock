@@ -2,6 +2,23 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+%% PropEr test integration
+proper_test_() ->
+    {timeout, 60, fun() ->
+        case code:which(proper) of
+            non_existing ->
+                ?debugMsg("PropEr not available, skipping property-based tests");
+            _ ->
+                ?debugMsg("Running PropEr tests..."),
+                try
+                    ok = sock_proper_tests:test(50)  % Run 50 tests per property
+                catch
+                    throw:proper_tests_failed ->
+                        ?assert(false)  % Fail the EUnit test
+                end
+        end
+    end}.
+
 setup() ->
     {ok, _} = application:ensure_all_started(sock).
 

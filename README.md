@@ -9,9 +9,11 @@ Setting up and managing connections via sockets.
 -type port_no() :: inet:port_number().
 -type address() :: inet:ip_address().
 
--type assoc() :: pid().
--type path() :: {assoc(), address()}.
--type ep() :: pid().
+-opaque assoc() :: pid().
+-opaque path() :: {assoc(), address()}.
+-opaque ep() :: pid().
+
+-type received_msg() :: {data, assoc(), Payload :: binary(), MetaData :: map()}.
 
 -type accept_callback() :: fun((address(), port_no(), CurrentAssocs) -> boolean()) |
                            fun((address(), port_no()) -> boolean()).
@@ -24,6 +26,9 @@ Setting up and managing connections via sockets.
 
 -spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()])
     -> {ok, assoc()} | {error, inet:posix() | not_found}.
+
+-spec send_msg(assoc(), Payload :: binary(), MetaData :: map(), [send_opt()])
+    -> ok.
 
 -spec get_eps()
     -> [ep()].
@@ -86,6 +91,11 @@ sock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
 %% create another sctp ep which listen and accept for up to 4 clients
 {ok, EP2} = sock:create_ep(30400, #{accept => {accept, 4}}).
 ```
+
+# Receive
+
+Each read payload from the socket will be message passed to the
+process that called create_ep, see type `received_msg()`.
 
 # SCTP
 

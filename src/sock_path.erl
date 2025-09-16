@@ -24,7 +24,7 @@ create_path(SockAddr) ->
     start_link(SockAddr#{parent => Parent}).
 
 start_link(Opts) ->
-    gen_server:start_link(?MODULE, init, [Opts]).
+    gen_server:start_link(?MODULE, [Opts], []).
 
 get_path(Pid) ->
     gen_server:call(Pid, get_path).

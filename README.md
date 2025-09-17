@@ -15,8 +15,10 @@ Setting up and managing connections via sockets.
 
 -type received_msg() :: {data, assoc(), Payload :: binary(), MetaData :: map()}.
 
--type accept_callback() :: fun((address(), port_no(), CurrentAssocs) -> boolean()) |
-                           fun((address(), port_no()) -> boolean()).
+-type anc_data() :: socket:cmsg_recv() | #{level := level() | integer(), type := integer(), data := binary()}.
+
+-type accept_callback() :: fun((address(), port_no(), [anc_data()], CurrentAssocs) -> boolean()) |
+                           fun((address(), port_no(), [anc_data()]) -> boolean()).
 
 -type local_opt() :: {accept, non_neg_integer() | accept_callback()} |
                      sctp_opts().

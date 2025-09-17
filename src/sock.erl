@@ -73,7 +73,10 @@ create_ep(LocalPort, LocalOpts) ->
     create_ep([loopback], LocalPort, LocalOpts).
 
 create_ep(LocalAddrs, LocalPort, LocalOpts) ->
-    sock_sup:start_child(LocalAddrs, LocalPort, LocalOpts).
+    create_ep(LocalAddrs, LocalPort, LocalOpts, self()).
+
+create_ep(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
+    sock_sup:start_child(LocalAddrs, LocalPort, LocalOpts, CallbackPid).
 
 -spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()]) ->
           {ok, assoc()} |

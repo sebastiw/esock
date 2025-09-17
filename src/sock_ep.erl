@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/3,
+-export([start_link/4,
          create_assoc/4,
          get_assocs/1,
          find_assoc/3
@@ -23,10 +23,10 @@
 %% API
 %% ---------------------------------------------------------------------------
 
-start_link(LocalAddrs, LocalPort, LocalOpts) ->
+start_link(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
     Protocol = proplists:get_value(protocol, LocalOpts, sctp),
     Name = {Protocol, LocalAddrs, LocalPort},
-    gen_server:start_link({via, sock_reg, Name}, ?MODULE, [LocalAddrs, LocalPort, LocalOpts], []).
+    gen_server:start_link({via, sock_reg, Name}, ?MODULE, [LocalAddrs, LocalPort, LocalOpts, CallbackPid], []).
 
 create_assoc(Ep, RemoteAddr, RemotePort, AssocOpts) ->
     gen_server:call(Ep, {create_assoc, RemoteAddr, RemotePort, AssocOpts}).
@@ -43,23 +43,28 @@ find_assoc(Ep, RemoteAddr, RemotePort) ->
 %% Callbacks
 %% ---------------------------------------------------------------------------
 
-init([LocalAddrs, LocalPort, LocalOpts]) ->
+init([LocalAddrs, LocalPort, LocalOpts, Parent]) ->
     Protocol = proplists:get_value(protocol, LocalOpts, sctp),
     {ok, Sock} = open_and_bind(LocalAddrs, LocalPort, LocalOpts, Protocol),
     State = #{socket => Sock,
               options => LocalOpts,
-              assocs => []
+              assocs => [],
+              parent => Parent
              },
     {ok, State, {continue, maybe_listen}}.
 
 handle_continue(maybe_listen, State) ->
     Options = maps:get(options, State, []),
+    %% Accept callback, wether to accept an incoming connection
+    %% fun(RemoteIP, RemotePort, AncData, CurrentCount)
     AC = case proplists:get_value(accept, Options) of
              N when is_integer(N) ->
-                 fun(_A, _P, C) -> C < N end;
+                 fun(_I, _P, _A, C) -> C < N end;
              F when is_function(F, 2) ->
-                 fun(A, P, _C) -> F(A, P) end;
+                 fun(I, P, _A, _C) -> F(I, P) end;
              F when is_function(F, 3) ->
+                 fun(I, P, _A, C) -> F(I, P, C) end;
+             F when is_function(F, 4) ->
                  F;
              undefined ->
                  undefined
@@ -71,13 +76,13 @@ handle_continue(maybe_listen, State) ->
             Sock = maps:get(socket, State),
             case listen(Sock) of
                 ok ->
-                    Parent = self(),
-                    spawn_link(fun () -> server_recv(Sock, Parent) end),
+                    Parent = maps:get(parent, State),
+                    spawn_link(fun () -> server_recv(Sock, Parent, AC, 0) end),
                     {noreply, State#{options => Options ++ [{accept, AC}]}}
             end
     end.
 
-handle_info({recv, {PeerIP, PeerPort, [], AncData}}, State) ->
+handle_info({recv, PeerIP, PeerPort, _Msg, AncData}, State) ->
     io:format("~p:recv:~p ~p~n", [?MODULE, ?LINE, {PeerIP, PeerPort, AncData}]),
     {noreply, State};
 handle_info(What, State) ->
@@ -148,12 +153,33 @@ listen(Sock) ->
     gen_sctp:listen(Sock, true).
 -endif.
 
--spec server_recv(socket:socket() | gen_sctp:sctp_socket(), pid()) -> no_return().
+-spec server_recv(socket:socket() | gen_sctp:sctp_socket(), pid(), accept_callback(), integer()) -> no_return().
 -ifdef(USE_SOCKET).
-server_recv(_Sock, _Parent) ->
-    ok.
+server_recv(Sock, Parent, AC, NumPeers) ->
+    case socket:recvmsg(Sock) of
+        {ok, Msg} ->
+            Addr = maps:get(addr, Msg, undefined),
+            PeerIP = maps:get(addr, Addr, undefined),
+            PeerPort = maps:get(port, Addr, undefined),
+            %% TODO: Deal with Msg flags?
+            #{iov := [IOVec],
+              ctrl := AncData,
+              flags := _Flags} = Msg,
+            case AC(PeerIP, PeerPort, AncData, NumPeers) of
+                true ->
+                    %% TODO: peeloff and handle separately
+                    Parent ! {recv, PeerIP, PeerPort, IOVec, AncData},
+                    server_recv(Sock, Parent, AC, NumPeers + 1);
+                false ->
+                    %% TODO: peeloff and close, for now just ignore
+                    io:format("~p:server_recv:~p Rejecting connection from ~p:~p~n", [?MODULE, ?LINE, PeerIP, PeerPort]),
+                    server_recv(Sock, Parent, AC, NumPeers)
+            end;
+        {error, _} = Err ->
+            Parent ! {recv, Err}
+    end.
 -else.
-server_recv(Sock, Parent) ->
+server_recv(Sock, Parent, _AC, _I) ->
     case gen_sctp:recv(Sock, infinity) of
         {ok, Msg} ->
             Parent ! {recv, Msg};

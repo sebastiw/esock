@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4,
+-export([start_link/5,
          get_paths/1
         ]).
 
@@ -21,8 +21,8 @@
 %% API
 %% ---------------------------------------------------------------------------
 
-start_link(Sock, LocalAddrs, LocalPort, LocalOpts) ->
-    gen_server:start_link(?MODULE, [Sock, LocalAddrs, LocalPort, LocalOpts], []).
+start_link(Sock, LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
+    gen_server:start_link(?MODULE, [Sock, LocalAddrs, LocalPort, LocalOpts, CallbackPid], []).
 
 get_paths(Assoc) ->
     %% TBD
@@ -32,12 +32,13 @@ get_paths(Assoc) ->
 %% Callbacks
 %% ---------------------------------------------------------------------------
 
-init([Sock, RemoteAddrs, RemotePort, AssocOpts]) ->
+init([Sock, RemoteAddrs, RemotePort, AssocOpts, CallbackPid]) ->
     State = #{socket => Sock,
               remote_addrs => RemoteAddrs,
               remote_port => RemotePort,
               options => AssocOpts,
-              paths => []},
+              paths => [],
+              callback_pid => CallbackPid},
     {ok, State, {continue, connect}}.
 
 handle_continue(connect, State) ->
@@ -50,7 +51,9 @@ handle_continue(connect, State) ->
 
 handle_info({comm_up, S, SockAddr}, State) ->
     io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, {comm_up, S}]),
-    {ok, Path} = sock_path:create_path(SockAddr),
+    CallbackPid = maps:get(callback_pid, State),
+    spawn_link(fun () -> client_recv(S, CallbackPid) end),
+    {ok, Path} = sock_path:create_path(SockAddr, CallbackPid),
     Paths = maps:get(paths, State),
     {noreply, State#{paths => [Path|Paths]}};
 handle_info(What, State) ->
@@ -101,4 +104,31 @@ client_loop(Sock, [SockAddr|SockAddrs], Parent) ->
             Parent ! Error,
             client_loop(Sock, SockAddrs ++ [SockAddr], Parent)
     end.
+-endif.
+
+-ifdef(USE_SOCKET).
+client_recv(Sock, CallbackPid) ->
+    case socket:recvmsg(Sock) of
+        {ok, Msg} ->
+            Addr = maps:get(addr, Msg, undefined),
+            PeerIP = maps:get(addr, Addr, undefined),
+            PeerPort = maps:get(port, Addr, undefined),
+            %% TODO: Deal with Msg flags?
+            #{iov := [IOVec],
+              ctrl := AncData,
+              flags := _Flags} = Msg,
+            CallbackPid ! {recv, PeerIP, PeerPort, IOVec, AncData},
+            client_recv(Sock, CallbackPid);
+        {error, _} = Err ->
+            CallbackPid ! {recv, Err}
+    end.
+-else.
+client_recv(Sock, CallbackPid) ->
+    case gen_sctp:recv(Sock, infinity) of
+        {ok, Msg} ->
+            CallbackPid ! {recv, Msg};
+        {error, _} = Err ->
+            CallbackPid ! {recv, Err}
+    end,
+    client_recv(Sock, CallbackPid).
 -endif.

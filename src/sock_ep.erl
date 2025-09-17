@@ -3,7 +3,7 @@
 
 %% API
 -export([start_link/4,
-         create_assoc/4,
+         create_assoc/5,
          get_assocs/1,
          find_assoc/3
         ]).
@@ -28,8 +28,8 @@ start_link(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
     Name = {Protocol, LocalAddrs, LocalPort},
     gen_server:start_link({via, sock_reg, Name}, ?MODULE, [LocalAddrs, LocalPort, LocalOpts, CallbackPid], []).
 
-create_assoc(Ep, RemoteAddr, RemotePort, AssocOpts) ->
-    gen_server:call(Ep, {create_assoc, RemoteAddr, RemotePort, AssocOpts}).
+create_assoc(Ep, RemoteAddr, RemotePort, AssocOpts, CallbackPid) ->
+    gen_server:call(Ep, {create_assoc, RemoteAddr, RemotePort, AssocOpts, CallbackPid}).
 
 get_assocs(Ep) ->
     %% TBD
@@ -43,13 +43,13 @@ find_assoc(Ep, RemoteAddr, RemotePort) ->
 %% Callbacks
 %% ---------------------------------------------------------------------------
 
-init([LocalAddrs, LocalPort, LocalOpts, Parent]) ->
+init([LocalAddrs, LocalPort, LocalOpts, CallbackPid]) ->
     Protocol = proplists:get_value(protocol, LocalOpts, sctp),
     {ok, Sock} = open_and_bind(LocalAddrs, LocalPort, LocalOpts, Protocol),
     State = #{socket => Sock,
               options => LocalOpts,
               assocs => [],
-              parent => Parent
+              callback_pid => CallbackPid
              },
     {ok, State, {continue, maybe_listen}}.
 
@@ -76,8 +76,8 @@ handle_continue(maybe_listen, State) ->
             Sock = maps:get(socket, State),
             case listen(Sock) of
                 ok ->
-                    Parent = maps:get(parent, State),
-                    spawn_link(fun () -> server_recv(Sock, Parent, AC, 0) end),
+                    CallbackPid = maps:get(callback_pid, State),
+                    spawn_link(fun () -> server_recv(Sock, CallbackPid, AC, 0) end),
                     {noreply, State#{options => Options ++ [{accept, AC}]}}
             end
     end.
@@ -92,11 +92,11 @@ handle_info(What, State) ->
 handle_cast(_What, State) ->
     {noreply, State}.
 
-handle_call({create_assoc, RemoteAddrs, RemotePort, AssocOpts}, _From, State) ->
+handle_call({create_assoc, RemoteAddrs, RemotePort, AssocOpts, CallbackPid}, _From, State) ->
     Sock = maps:get(socket, State),
     LocalOpts = maps:get(options, State, []),
     Opts = LocalOpts ++ AssocOpts,
-    {ok, Pid} = sock_assoc:start_link(Sock, RemoteAddrs, RemotePort, Opts),
+    {ok, Pid} = sock_assoc:start_link(Sock, RemoteAddrs, RemotePort, Opts, CallbackPid),
     Assocs = maps:get(assocs, State),
     {reply, {ok, Pid}, State#{assocs => [Pid|Assocs]}};
 handle_call(get_assocs, _From, State) ->
@@ -155,7 +155,7 @@ listen(Sock) ->
 
 -spec server_recv(socket:socket() | gen_sctp:sctp_socket(), pid(), accept_callback(), integer()) -> no_return().
 -ifdef(USE_SOCKET).
-server_recv(Sock, Parent, AC, NumPeers) ->
+server_recv(Sock, CallbackPid, AC, NumPeers) ->
     case socket:recvmsg(Sock) of
         {ok, Msg} ->
             Addr = maps:get(addr, Msg, undefined),
@@ -168,23 +168,23 @@ server_recv(Sock, Parent, AC, NumPeers) ->
             case AC(PeerIP, PeerPort, AncData, NumPeers) of
                 true ->
                     %% TODO: peeloff and handle separately
-                    Parent ! {recv, PeerIP, PeerPort, IOVec, AncData},
-                    server_recv(Sock, Parent, AC, NumPeers + 1);
+                    CallbackPid ! {recv, PeerIP, PeerPort, IOVec, AncData},
+                    server_recv(Sock, CallbackPid, AC, NumPeers + 1);
                 false ->
                     %% TODO: peeloff and close, for now just ignore
                     io:format("~p:server_recv:~p Rejecting connection from ~p:~p~n", [?MODULE, ?LINE, PeerIP, PeerPort]),
-                    server_recv(Sock, Parent, AC, NumPeers)
+                    server_recv(Sock, CallbackPid, AC, NumPeers)
             end;
         {error, _} = Err ->
-            Parent ! {recv, Err}
+            CallbackPid ! {recv, Err}
     end.
 -else.
-server_recv(Sock, Parent, _AC, _I) ->
+server_recv(Sock, CallbackPid, AC, I) ->
     case gen_sctp:recv(Sock, infinity) of
         {ok, Msg} ->
-            Parent ! {recv, Msg};
+            CallbackPid ! {recv, Msg};
         {error, _} = Err ->
-            Parent ! {recv, Err}
+            CallbackPid ! {recv, Err}
     end,
-    server_recv(Sock, Parent).
+    server_recv(Sock, CallbackPid, AC, I).
 -endif.

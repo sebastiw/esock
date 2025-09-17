@@ -23,7 +23,7 @@ ep_already_started_same_ip_test_() ->
               ?_assertMatch({ok, []}, Ass)]
      end}.
 
-listen_accept_1_test() ->
+listen_accept_1_test_() ->
     {"Create one EP and listen to incoming connections, accept 1 and reject 1.",
      {setup,
       fun setup/0,
@@ -43,20 +43,43 @@ listen_accept_1_test() ->
               ok = gen_sctp:send(CSock1, #sctp_sndrcvinfo{assoc_id = CAssoc1#sctp_assoc_change.assoc_id}, <<"Hello">>),
               ok = gen_sctp:send(CSock2, #sctp_sndrcvinfo{assoc_id = CAssoc2#sctp_assoc_change.assoc_id}, <<"Hello">>),
 
-              receive
-                  {recv, _IP, _Port, <<"Hello">>, _Anc} ->
-                      receive
-                          _ ->
-                              exit(1)
-                      after 100 ->
-                              ok
-                      end;
-                  O ->
-                      io:format("ERROR ~p~n", [O]),
-                      exit(3)
-              after 100 ->
-                      exit(2)
-              end
+              CollectMsg = collect_msgs(),
+              [?_assertMatch([{ok, _}], CollectMsg)]
+      end}}.
+
+connect_1_test_() ->
+    {"Create an assoc and connect to remote address.",
+     {setup,
+      fun setup/0,
+      fun teardown/1,
+      fun (_) ->
+              %% redbug:start(["sock_ep->return", "gen_sctp:connect->return"], #{print_file => "user.log"}),
+              %% timer:sleep(100),
+              %% redbug:stop(),
+
+              %% Create some listening servers
+              FreePort1 = get_free_port(),
+              FreePort2 = get_free_port(),
+              {ok, LSock1} = gen_sctp:open([{type, seqpacket}, inet, {ifaddr, #{family => inet, addr => loopback, port => FreePort1}}]),
+              {ok, LSock2} = gen_sctp:open([{type, seqpacket}, inet, {ifaddr, #{family => inet, addr => loopback, port => FreePort2}}]),
+
+              ok = gen_sctp:listen(LSock1, true),
+              ok = gen_sctp:listen(LSock2, true),
+
+
+              %% Socket under test
+              FreePort3 = get_free_port(),
+              {ok, CEP1} = sock:create_ep([loopback], FreePort3, []),
+
+              {ok, _CAssoc1} = sock:create_assoc(CEP1, [loopback], FreePort1, []),
+
+              {ok, {_, _, [], #sctp_assoc_change{state = comm_up} = LAssoc1}} = gen_sctp:recv(LSock1),
+
+              ok = gen_sctp:send(LSock1, #sctp_sndrcvinfo{assoc_id = LAssoc1#sctp_assoc_change.assoc_id}, <<"Hello">>),
+              {error, epipe} = gen_sctp:send(LSock2, #sctp_sndrcvinfo{assoc_id = LAssoc1#sctp_assoc_change.assoc_id}, <<"Hello">>),
+
+              CollectMsg = collect_msgs(),
+              [?_assertMatch([{ok, _}], CollectMsg)]
       end}}.
 
 get_free_port() ->
@@ -65,3 +88,16 @@ get_free_port() ->
     {ok, #{port := Port}} = socket:sockname(Sock),
     ok = socket:close(Sock),
     Port.
+
+collect_msgs() ->
+    collect_msgs([]).
+
+collect_msgs(Acc) ->
+    receive
+        {recv, _IP, _Port, _Msg, _Anc} = Recv ->
+            collect_msgs([{ok, Recv} | Acc]);
+        Else ->
+            collect_msgs([{error, Else} | Acc])
+    after 100 ->
+            Acc
+    end.

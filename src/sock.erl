@@ -9,7 +9,9 @@ API for the sock application.
          create_ep/1,
          create_ep/2,
          create_ep/3,
+         create_ep/4,
          create_assoc/4,
+         create_assoc/5,
          get_eps/0,
          get_ep/2,
          get_assocs/1,
@@ -60,8 +62,9 @@ API for the sock application.
 -spec create_ep(LocalPort :: port_no(), LocalOpts :: [local_opt()]) ->
           {ok, ep()} | {error, inet:posix()}.
 -spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()]) ->
-          {ok, ep()} |
-          {error, inet:posix()}.
+          {ok, ep()} | {error, inet:posix()}.
+-spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()], pid()) ->
+          {ok, ep()} | {error, inet:posix()}.
 
 create_ep() ->
     create_ep([]).
@@ -81,8 +84,14 @@ create_ep(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
 -spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()]) ->
           {ok, assoc()} |
           {error, inet:posix() | not_found}.
+-spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()], pid()) ->
+          {ok, assoc()} |
+          {error, inet:posix() | not_found}.
 create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts) ->
-    sock_ep:create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts).
+    create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts, self()).
+
+create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts, CallbackPid) ->
+    sock_ep:create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts, CallbackPid).
 
 -spec get_eps() ->
           [ep()].

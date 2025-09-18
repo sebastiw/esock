@@ -73,7 +73,13 @@ handle_call({unregister_name, Name}, _From, State) ->
     {Protocol, IPs, Port} = Name,
     Reply = case ets:member(sock_reg_name, Name) of
                 true ->
-                    PortIPs = lists:zip([{Protocol, Port}], lists:usort(IPs), {pad, {{Protocol, Port}, loopback}}),
+                    % PortIPs = lists:zip([{Protocol, Port}], lists:usort(IPs), {pad, {{Protocol, Port}, loopback}}),
+                    SortedIps = 
+                        case IPs of
+                            [] -> [loopback];
+                            _ -> lists:usort(IPs)
+                        end,
+                    PortIPs = [{{Protocol, Port}, IP} || IP <- SortedIps],
                     [ets:delete_object(sock_reg_ports, P) || P <- PortIPs],
                     ets:delete(sock_reg_name, Name),
                     yes;
@@ -109,7 +115,13 @@ terminate(_How, _State) ->
 
 insert_new(Name, Pid) ->
     {Protocol, IPs, Port} = Name,
-    PortIPs = lists:zip([{Protocol, Port}], lists:usort(IPs), {pad, {{Protocol, Port}, loopback}}),
+    % PortIPs = lists:zip([{Protocol, Port}], lists:usort(IPs), {pad, {{Protocol, Port}, loopback}}),
+    SortedIps = 
+        case IPs of
+            [] -> [loopback];
+            _ -> lists:usort(IPs)
+        end,
+    PortIPs = [{{Protocol, Port}, IP} || IP <- SortedIps],
     case ets:insert_new(sock_reg_name, {Name, Pid}) of
         true ->
             ets:insert_new(sock_reg_ports, PortIPs),

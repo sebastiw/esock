@@ -1,4 +1,4 @@
--module(sock_options).
+-module(esock_options).
 
 -export([set_socket_options/3
         ]).
@@ -13,7 +13,7 @@
 %% API
 %% ---------------------------------------------------------------------------
 
--spec set_socket_options(sock:protocol(), socket:socket(), map()) -> ok.
+-spec set_socket_options(esock:protocol(), socket:socket(), map()) -> ok.
 set_socket_options(sctp, Sock, State) ->
     set_sctp_sndrcvinfo(Sock, maps:get(sctp_sndrcvinfo, State, #{}));
 set_socket_options(_, _, _) ->

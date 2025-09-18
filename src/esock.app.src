@@ -1,16 +1,16 @@
-{application, sock,
+{application, esock,
  [{description, "Socket connect/listen application"},
   {vsn, "0.1.0"},
-  {registered, [sock]},
+  {registered, [esock]},
   {applications,
    [kernel,
     stdlib
    ]},
-  {mod, {sock_app, []}},
+  {mod, {esock_app, []}},
   {files, ["src",
            "rebar.config"]},
   {exclude_patterns, []},
   %% hex.pm stuff
   {licenses, ["Apache-2.0"]},
-  {links, [{"GitHub", "https://github.com/sebastiw/sock"}]}
+  {links, [{"GitHub", "https://github.com/sebastiw/esock"}]}
  ]}.

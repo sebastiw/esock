@@ -1,4 +1,4 @@
--module(sock_sup).
+-module(esock_sup).
 -behaviour(supervisor).
 
 -moduledoc """
@@ -7,7 +7,7 @@ Application wide supervisor of endpoint processes.
 
 %% API
 -export([start_link/0,
-         start_child/3,
+         start_child/4,
          get_eps/0,
          get_ep/2,
          find_assoc/4
@@ -24,8 +24,8 @@ Application wide supervisor of endpoint processes.
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_child(LocalAddrs, LocalPort, LocalOpts) ->
-    ChildOpts = [LocalAddrs, LocalPort, LocalOpts],
+start_child(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
+    ChildOpts = [LocalAddrs, LocalPort, LocalOpts, CallbackPid],
     supervisor:start_child(?MODULE, ep_spec(ChildOpts)).
 
 get_eps() ->
@@ -50,7 +50,7 @@ find_assoc(_LocalAddr, _LocalPort, _RemoteAddr, _RemotePort) ->
 %% ---------------------------------------------------------------------------
 
 init(_) ->
-    sock_reg:start_link(),
+    esock_reg:start_link(),
     Flags = #{strategy => one_for_one,
               intensity => 5,
               period => 10,
@@ -61,12 +61,12 @@ init(_) ->
 %% Helpers
 %% ---------------------------------------------------------------------------
 
-ep_spec([LocalAddrs, LocalPort, LocalOpts] = Args) ->
+ep_spec([LocalAddrs, LocalPort, LocalOpts, _CallbackPid] = Args) ->
     Proto = proplists:get_value(protocol, LocalOpts, sctp),
     #{id => {Proto, LocalAddrs, LocalPort},
-      start => {sock_ep, start_link, Args},
+      start => {esock_ep, start_link, Args},
       restart => transient,
       significant => false,
       shutdown => 5,
       type => worker,
-      modules => [sock_ep]}.
+      modules => [esock_ep]}.

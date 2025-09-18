@@ -1,4 +1,4 @@
--module(sock).
+-module(esock).
 
 -moduledoc """
 API for the sock application.
@@ -9,7 +9,9 @@ API for the sock application.
          create_ep/1,
          create_ep/2,
          create_ep/3,
+         create_ep/4,
          create_assoc/4,
+         create_assoc/5,
          get_eps/0,
          get_ep/2,
          get_assocs/1,
@@ -60,8 +62,9 @@ API for the sock application.
 -spec create_ep(LocalPort :: port_no(), LocalOpts :: [local_opt()]) ->
           {ok, ep()} | {error, inet:posix()}.
 -spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()]) ->
-          {ok, ep()} |
-          {error, inet:posix()}.
+          {ok, ep()} | {error, inet:posix()}.
+-spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()], pid()) ->
+          {ok, ep()} | {error, inet:posix()}.
 
 create_ep() ->
     create_ep([]).
@@ -73,39 +76,48 @@ create_ep(LocalPort, LocalOpts) ->
     create_ep([loopback], LocalPort, LocalOpts).
 
 create_ep(LocalAddrs, LocalPort, LocalOpts) ->
-    sock_sup:start_child(LocalAddrs, LocalPort, LocalOpts).
+    create_ep(LocalAddrs, LocalPort, LocalOpts, self()).
+
+create_ep(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
+    esock_sup:start_child(LocalAddrs, LocalPort, LocalOpts, CallbackPid).
 
 -spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()]) ->
           {ok, assoc()} |
           {error, inet:posix() | not_found}.
+-spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()], pid()) ->
+          {ok, assoc()} |
+          {error, inet:posix() | not_found}.
 create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts) ->
-    sock_ep:create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts).
+    create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts, self()).
+
+create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts, CallbackPid) ->
+    esock_ep:create_assoc(Ep, RemoteAddrs, RemotePort, RemoteOpts, CallbackPid).
 
 -spec get_eps() ->
           [ep()].
 get_eps() ->
-    sock_sup:get_eps().
+    esock_sup:get_eps().
 
 -spec get_ep(LocalAddr :: address(), LocalPort :: port_no()) ->
           {ok, ep()} |
           {error, not_found}.
 get_ep(LocalAddr, LocalPort) ->
-    sock_sup:get_ep(LocalAddr, LocalPort).
+    esock_sup:get_ep(LocalAddr, LocalPort).
 
 -spec get_assocs(ep()) ->
           {ok, [assoc()]} |
           {error, not_found}.
 get_assocs(Ep) ->
-    sock_ep:get_assocs(Ep).
+    esock_ep:get_assocs(Ep).
 
 -spec get_paths(assoc()) ->
           {ok, [path()]} |
           {error, not_found}.
 get_paths(Assoc) ->
-    sock_assoc:get_paths(Assoc).
+    esock_assoc:get_paths(Assoc).
 
 -spec find_assoc(LocalAddr :: address(), LocalPort :: port_no(), RemoteAddr :: address(), RemotePort :: port_no()) ->
           {ok, assoc()} |
           {error, not_found}.
 find_assoc(LocalAddr, LocalPort, RemoteAddr, RemotePort) ->
-    sock_sup:find_assoc(LocalAddr, LocalPort, RemoteAddr, RemotePort).
+    esock_sup:find_assoc(LocalAddr, LocalPort, RemoteAddr, RemotePort).

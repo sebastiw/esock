@@ -9,12 +9,16 @@ Setting up and managing connections via sockets.
 -type port_no() :: inet:port_number().
 -type address() :: inet:ip_address().
 
--type assoc() :: pid().
--type path() :: {assoc(), address()}.
--type ep() :: pid().
+-opaque assoc() :: pid().
+-opaque path() :: {assoc(), address()}.
+-opaque ep() :: pid().
 
--type accept_callback() :: fun((address(), port_no(), CurrentAssocs) -> boolean()) |
-                           fun((address(), port_no()) -> boolean()).
+-type received_msg() :: {data, assoc(), Payload :: binary(), MetaData :: map()}.
+
+-type anc_data() :: socket:cmsg_recv() | #{level := level() | integer(), type := integer(), data := binary()}.
+
+-type accept_callback() :: fun((address(), port_no(), [anc_data()], CurrentAssocs) -> boolean()) |
+                           fun((address(), port_no(), [anc_data()]) -> boolean()).
 
 -type local_opt() :: {accept, non_neg_integer() | accept_callback()} |
                      sctp_opts().
@@ -24,6 +28,9 @@ Setting up and managing connections via sockets.
 
 -spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()])
     -> {ok, assoc()} | {error, inet:posix() | not_found}.
+
+-spec send_msg(assoc(), Payload :: binary(), MetaData :: map(), [send_opt()])
+    -> ok.
 
 -spec get_eps()
     -> [ep()].
@@ -75,17 +82,22 @@ flowchart TD
 
 ```erlang
 %% start application supervisor
-application:ensure_all_started(sock).
+application:ensure_all_started(esock).
 
 %% create a sctp ep on loopback interface with a free port
-{ok, EP} = sock:create_ep().
+{ok, EP} = esock:create_ep().
 
 %% connect sctp ep to remote address 127.0.0.1:30400
-sock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
+esock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
 
 %% create another sctp ep which listen and accept for up to 4 clients
-{ok, EP2} = sock:create_ep(30400, #{accept => {accept, 4}}).
+{ok, EP2} = esock:create_ep(30400, #{accept => {accept, 4}}).
 ```
+
+# Receive
+
+Each read payload from the socket will be message passed to the
+process that called create_ep, see type `received_msg()`.
 
 # SCTP
 

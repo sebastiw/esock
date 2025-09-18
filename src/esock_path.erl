@@ -1,8 +1,8 @@
--module(sock_path).
+-module(esock_path).
 -behaviour(gen_server).
 
 %% API
--export([create_path/1,
+-export([create_path/2,
          start_link/1,
          get_path/1
         ]).
@@ -19,12 +19,11 @@
 %% API
 %% ---------------------------------------------------------------------------
 
-create_path(SockAddr) ->
-    Parent = self(),
-    start_link(SockAddr#{parent => Parent}).
+create_path(SockAddr, CallbackPid) ->
+    start_link(SockAddr#{callback_pid => CallbackPid}).
 
 start_link(Opts) ->
-    gen_server:start_link(?MODULE, init, [Opts]).
+    gen_server:start_link(?MODULE, [Opts], []).
 
 get_path(Pid) ->
     gen_server:call(Pid, get_path).

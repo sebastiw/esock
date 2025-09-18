@@ -1,4 +1,4 @@
--module(sock_reg).
+-module(esock_reg).
 -behaviour(gen_server).
 
 %% API
@@ -45,8 +45,8 @@ send(Name, Msg) ->
 %% ---------------------------------------------------------------------------
 
 init(_) ->
-    ets:new(sock_reg_ports, [named_table, bag]),
-    ets:new(sock_reg_name, [named_table]),
+    ets:new(esock_reg_ports, [named_table, bag]),
+    ets:new(esock_reg_name, [named_table]),
     {ok, #{}}.
 
 handle_info(_What, State) ->
@@ -57,7 +57,7 @@ handle_cast(_What, State) ->
 
 handle_call({register_name, Name, Pid}, _From, State) ->
     {Protocol, IPs, Port} = Name,
-    Reply = case ets:lookup(sock_reg_ports, {Protocol, Port}) of
+    Reply = case ets:lookup(esock_reg_ports, {Protocol, Port}) of
                 [] ->
                     insert_new(Name, Pid);
                 [{_, IPs2}] ->
@@ -71,7 +71,7 @@ handle_call({register_name, Name, Pid}, _From, State) ->
     {reply, Reply, State};
 handle_call({unregister_name, Name}, _From, State) ->
     {Protocol, IPs, Port} = Name,
-    Reply = case ets:member(sock_reg_name, Name) of
+    Reply = case ets:member(esock_reg_name, Name) of
                 true ->
                     % PortIPs = lists:zip([{Protocol, Port}], lists:usort(IPs), {pad, {{Protocol, Port}, loopback}}),
                     SortedIps = 
@@ -88,7 +88,7 @@ handle_call({unregister_name, Name}, _From, State) ->
             end,
     {reply, Reply, State};
 handle_call({whereis_name, Name}, _From, State) ->
-    Reply = case ets:lookup(sock_reg_name, Name) of
+    Reply = case ets:lookup(esock_reg_name, Name) of
                 [] ->
                     undefined;
                 [{_, Pid}] ->
@@ -105,8 +105,8 @@ handle_call({send, Name, Msg}, _From, State) ->
     {reply, Reply, State}.
 
 terminate(_How, _State) ->
-    ets:delete(sock_reg_ports),
-    ets:delete(sock_reg_name),
+    ets:delete(esock_reg_ports),
+    ets:delete(esock_reg_name),
     ok.
 
 %% ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ insert_new(Name, Pid) ->
     PortIPs = [{{Protocol, Port}, IP} || IP <- SortedIps],
     case ets:insert_new(sock_reg_name, {Name, Pid}) of
         true ->
-            ets:insert_new(sock_reg_ports, PortIPs),
+            ets:insert_new(esock_reg_ports, PortIPs),
             yes;
         false ->
             no

@@ -1,4 +1,4 @@
--module(sock_path).
+-module(esock_path).
 -behaviour(gen_server).
 
 %% API

@@ -1,4 +1,4 @@
--module(sock_assoc).
+-module(esock_assoc).
 -behaviour(gen_server).
 
 %% API
@@ -15,7 +15,7 @@
          terminate/2
         ]).
 
--include("sock.hrl").
+-include("esock.hrl").
 
 %% ---------------------------------------------------------------------------
 %% API
@@ -53,7 +53,7 @@ handle_info({comm_up, S, SockAddr}, State) ->
     io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, {comm_up, S}]),
     CallbackPid = maps:get(callback_pid, State),
     spawn_link(fun () -> client_recv(S, CallbackPid) end),
-    {ok, Path} = sock_path:create_path(SockAddr, CallbackPid),
+    {ok, Path} = esock_path:create_path(SockAddr, CallbackPid),
     Paths = maps:get(paths, State),
     {noreply, State#{paths => [Path|Paths]}};
 handle_info(What, State) ->
@@ -66,7 +66,7 @@ handle_cast(_What, State) ->
 handle_call(get_paths, _From, State) ->
     PathPids = maps:get(paths, State),
     RPort = maps:get(remote_port, State),
-    PAddrs = [sock_path:get_path(P) || P <- PathPids],
+    PAddrs = [esock_path:get_path(P) || P <- PathPids],
     Paths = {self(), PAddrs, RPort},
     {reply, {ok, Paths}, State};
 handle_call(_What, _From, State) ->
@@ -81,8 +81,8 @@ terminate(_What, _State) ->
 
 connect_async(Sock, Addrs, Port, _Opts) ->
     Parent = self(),
-    {ok, Domain} = sock_utils:get_domain(Addrs, _Opts),
-    SockAddrs = [sock_utils:socket_address(Domain, A, Port) || A <- Addrs],
+    {ok, Domain} = esock_utils:get_domain(Addrs, _Opts),
+    SockAddrs = [esock_utils:socket_address(Domain, A, Port) || A <- Addrs],
     spawn_link(fun () -> client_loop(Sock, SockAddrs, Parent) end).
 
 -ifdef(USE_SOCKET).

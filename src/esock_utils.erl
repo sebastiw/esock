@@ -1,4 +1,4 @@
--module(sock_utils).
+-module(esock_utils).
 
 -export([get_domain/2,
          socket_address/3,

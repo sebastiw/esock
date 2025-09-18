@@ -82,16 +82,16 @@ flowchart TD
 
 ```erlang
 %% start application supervisor
-application:ensure_all_started(sock).
+application:ensure_all_started(esock).
 
 %% create a sctp ep on loopback interface with a free port
-{ok, EP} = sock:create_ep().
+{ok, EP} = esock:create_ep().
 
 %% connect sctp ep to remote address 127.0.0.1:30400
-sock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
+esock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
 
 %% create another sctp ep which listen and accept for up to 4 clients
-{ok, EP2} = sock:create_ep(30400, #{accept => {accept, 4}}).
+{ok, EP2} = esock:create_ep(30400, #{accept => {accept, 4}}).
 ```
 
 # Receive

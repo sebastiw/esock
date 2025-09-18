@@ -1,13 +1,13 @@
--module(sock_tests).
+-module(esock_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/inet_sctp.hrl").
 
 setup() ->
-    {ok, _} = application:ensure_all_started(sock).
+    {ok, _} = application:ensure_all_started(esock).
 
 teardown(_) ->
-    application:stop(sock).
+    application:stop(esock).
 
 ep_already_started_same_ip_test_() ->
     {setup,
@@ -15,9 +15,9 @@ ep_already_started_same_ip_test_() ->
      fun teardown/1,
      fun (_) ->
              FreePort1 = get_free_port(),
-             {ok, EP1} = sock:create_ep(FreePort1, []),
-             Err = sock:create_ep(FreePort1, []),
-             Ass = sock:get_assocs(EP1),
+             {ok, EP1} = esock:create_ep(FreePort1, []),
+             Err = esock:create_ep(FreePort1, []),
+             Ass = esock:get_assocs(EP1),
              [?_assert(is_pid(EP1)),
               ?_assertMatch({error, {already_started, EP1}}, Err),
               ?_assertMatch({ok, []}, Ass)]
@@ -31,7 +31,7 @@ listen_accept_1_test_() ->
       fun (_) ->
               %% Socket under test
               FreePort1 = get_free_port(),
-              {ok, _LEP1} = sock:create_ep([loopback], FreePort1, [{accept, 1}]),
+              {ok, _LEP1} = esock:create_ep([loopback], FreePort1, [{accept, 1}]),
 
               %% Create some connecting clients
               {ok, CSock1} = gen_sctp:open(),
@@ -69,9 +69,9 @@ connect_1_test_() ->
 
               %% Socket under test
               FreePort3 = get_free_port(),
-              {ok, CEP1} = sock:create_ep([loopback], FreePort3, []),
+              {ok, CEP1} = esock:create_ep([loopback], FreePort3, []),
 
-              {ok, _CAssoc1} = sock:create_assoc(CEP1, [loopback], FreePort1, []),
+              {ok, _CAssoc1} = esock:create_assoc(CEP1, [loopback], FreePort1, []),
 
               {ok, {_, _, [], #sctp_assoc_change{state = comm_up} = LAssoc1}} = gen_sctp:recv(LSock1),
 

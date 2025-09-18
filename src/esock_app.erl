@@ -1,4 +1,4 @@
--module(sock_app).
+-module(esock_app).
 
 -behaviour(application).
 
@@ -20,7 +20,7 @@
 
 -spec start(_, _) -> {ok, pid()}.
 start(_, _) ->
-  sock_sup:start_link().
+  esock_sup:start_link().
 
 -spec stop(_) -> ok.
 stop(_) ->

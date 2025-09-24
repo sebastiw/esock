@@ -2,7 +2,9 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/5,
+-export([start_link/6,
+         connect/1,
+         send/2,
          get_paths/1
         ]).
 
@@ -21,8 +23,14 @@
 %% API
 %% ---------------------------------------------------------------------------
 
-start_link(Sock, LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
-    gen_server:start_link(?MODULE, [Sock, LocalAddrs, LocalPort, LocalOpts, CallbackPid], []).
+start_link(Backend, Sock, RemoteAddrs, RemotePort, RemoteOpts, CallbackPid) ->
+    gen_server:start_link(?MODULE, [Backend, Sock, RemoteAddrs, RemotePort, RemoteOpts, CallbackPid], []).
+
+connect(Assoc) ->
+    gen_server:call(Assoc, connect).
+
+send(Assoc, Data) ->
+    gen_server:cast(Assoc, {send, Data}).
 
 get_paths(Assoc) ->
     %% TBD
@@ -32,27 +40,30 @@ get_paths(Assoc) ->
 %% Callbacks
 %% ---------------------------------------------------------------------------
 
-init([Sock, RemoteAddrs, RemotePort, AssocOpts, CallbackPid]) ->
-    State = #{socket => Sock,
+init([Backend, Sock, RemoteAddrs, RemotePort, AssocOpts, CallbackPid]) ->
+    State = #{backend => Backend,
+              socket => Sock,
               remote_addrs => RemoteAddrs,
               remote_port => RemotePort,
               options => AssocOpts,
               paths => [],
               callback_pid => CallbackPid},
-    {ok, State, {continue, connect}}.
+    {ok, State}.
 
 handle_continue(connect, State) ->
+    Backend = maps:get(backend, State),
     Sock = maps:get(socket, State),
     RAddrs = maps:get(remote_addrs, State),
     RPort = maps:get(remote_port, State),
     Opts = maps:get(options, State),
-    connect_async(Sock, RAddrs, RPort, Opts),
+    connect_async(Backend, Sock, RAddrs, RPort, Opts),
     {noreply, State}.
 
 handle_info({comm_up, S, SockAddr}, State) ->
-    io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, {comm_up, S}]),
+    io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, {comm_up, S, SockAddr}]),
+    Backend = maps:get(backend, State),
     CallbackPid = maps:get(callback_pid, State),
-    spawn_link(fun () -> client_recv(S, CallbackPid) end),
+    spawn_link(fun () -> client_recv(Backend, S, CallbackPid) end),
     {ok, Path} = esock_path:create_path(SockAddr, CallbackPid),
     Paths = maps:get(paths, State),
     {noreply, State#{paths => [Path|Paths]}};
@@ -60,9 +71,16 @@ handle_info(What, State) ->
     io:format("~p:~p:~p ~p~n", [?MODULE, ?FUNCTION_NAME, ?LINE, What]),
     {noreply, State}.
 
+handle_cast({send, Data}, State) ->
+    Backend = maps:get(backend, State),
+    Sock = maps:get(socket, State),
+    send(Backend, Sock, Data),
+    {noreply, State};
 handle_cast(_What, State) ->
     {noreply, State}.
 
+handle_call(connect, _From, State) ->
+    {reply, ok, State, {continue, connect}};
 handle_call(get_paths, _From, State) ->
     PathPids = maps:get(paths, State),
     RPort = maps:get(remote_port, State),
@@ -79,35 +97,31 @@ terminate(_What, _State) ->
 %% Helpers
 %% ---------------------------------------------------------------------------
 
-connect_async(Sock, Addrs, Port, _Opts) ->
+connect_async(Backend, Sock, Addrs, Port, _Opts) ->
     Parent = self(),
     {ok, Domain} = esock_utils:get_domain(Addrs, _Opts),
     SockAddrs = [esock_utils:socket_address(Domain, A, Port) || A <- Addrs],
-    spawn_link(fun () -> client_loop(Sock, SockAddrs, Parent) end).
+    spawn_link(fun () -> client_loop(Backend, Sock, SockAddrs, Parent) end).
 
--ifdef(USE_SOCKET).
-client_loop(Sock, [SockAddr|SockAddrs], Parent) ->
+client_loop(socket = Backend, Sock, [SockAddr|SockAddrs], Parent) ->
     case socket:connect(Sock, SockAddr, 500) of
         ok ->
             Parent ! {comm_up, Sock, SockAddr};
         {error, _} = Error ->
             Parent ! Error,
-            client_loop(Sock, SockAddrs ++ [SockAddr], Parent)
-    end.
--else.
-client_loop(Sock, [SockAddr|SockAddrs], Parent) ->
+            client_loop(Backend, Sock, SockAddrs ++ [SockAddr], Parent)
+    end;
+client_loop(gen_sctp = Backend, Sock, [SockAddr|SockAddrs], Parent) ->
     %% connectx_init does not work that well?
     case gen_sctp:connect(Sock, SockAddr, [{sctp_autoclose, 500}]) of
         {ok, Ass} ->
             Parent ! {comm_up, Ass, SockAddr};
         {error, _} = Error ->
             Parent ! Error,
-            client_loop(Sock, SockAddrs ++ [SockAddr], Parent)
+            client_loop(Backend, Sock, SockAddrs ++ [SockAddr], Parent)
     end.
--endif.
 
--ifdef(USE_SOCKET).
-client_recv(Sock, CallbackPid) ->
+client_recv(socket = Backend, Sock, CallbackPid) ->
     case socket:recvmsg(Sock) of
         {ok, Msg} ->
             Addr = maps:get(addr, Msg, undefined),
@@ -117,18 +131,23 @@ client_recv(Sock, CallbackPid) ->
             #{iov := [IOVec],
               ctrl := AncData,
               flags := _Flags} = Msg,
-            CallbackPid ! {recv, PeerIP, PeerPort, IOVec, AncData},
-            client_recv(Sock, CallbackPid);
+            CallbackPid ! {data, PeerIP, PeerPort, IOVec, AncData},
+            client_recv(Backend, Sock, CallbackPid);
         {error, _} = Err ->
-            CallbackPid ! {recv, Err}
-    end.
--else.
-client_recv(Sock, CallbackPid) ->
+            CallbackPid ! Err
+    end;
+client_recv(gen_sctp = Backend, Sock, CallbackPid) ->
     case gen_sctp:recv(Sock, infinity) of
-        {ok, Msg} ->
-            CallbackPid ! {recv, Msg};
+        {ok, {PeerIP, PeerPort, AncData, Msg}} ->
+            CallbackPid ! {data, PeerIP, PeerPort, Msg, AncData};
         {error, _} = Err ->
-            CallbackPid ! {recv, Err}
+            CallbackPid ! Err
     end,
-    client_recv(Sock, CallbackPid).
--endif.
+    client_recv(Backend, Sock, CallbackPid).
+
+send(socket = _Backend, Sock, Data) ->
+    ok = socket:send(Sock, Data);
+send(gen_sctp = _Backend, _Sock, _Data) ->
+    %% TODO
+    %% ok = gen_sctp:send(Sock, #sndrcvinfo{}, Data).
+    ok.

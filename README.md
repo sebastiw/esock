@@ -5,49 +5,7 @@ Setting up and managing connections via sockets.
 
 # API
 
-```erlang
--type port_no() :: inet:port_number().
--type address() :: inet:ip_address().
-
--opaque assoc() :: pid().
--opaque path() :: {assoc(), address()}.
--opaque ep() :: pid().
-
--type received_msg() :: {data, assoc(), Payload :: binary(), MetaData :: map()}.
-
--type anc_data() :: socket:cmsg_recv() | #{level := level() | integer(), type := integer(), data := binary()}.
-
--type accept_callback() :: fun((address(), port_no(), [anc_data()], CurrentAssocs) -> boolean()) |
-                           fun((address(), port_no(), [anc_data()]) -> boolean()).
-
--type local_opt() :: {accept, non_neg_integer() | accept_callback()} |
-                     sctp_opts().
-
--spec create_ep(LocalAddrs :: [address()], LocalPort :: port_no(), [local_opt()])
-    -> {ok, ep()} | {error, inet:posix()}.
-
--spec create_assoc(ep(), RemoteAddrs :: [address()], RemotePort :: port_no(), [assoc_opt()])
-    -> {ok, assoc()} | {error, inet:posix() | not_found}.
-
--spec send_msg(assoc(), Payload :: binary(), MetaData :: map(), [send_opt()])
-    -> ok.
-
--spec get_eps()
-    -> [ep()].
-
--spec get_ep(LocalAddr :: address(), LocalPort :: port_no())
-    -> {ok, ep()} | {error, not_found}.
-
--spec get_assocs(ep())
-    -> {ok, [assoc()]} | {error, not_found}.
-
--spec get_paths(assoc())
-    -> {ok, [path()]} | {error, not_found}.
-
--spec find_assoc(LocalAddr :: address(), LocalPort :: port_no(), RemoteAddr :: address(), RemotePort :: port_no())
-    -> {ok, assoc()} | {error, not_found}.
-```
-
+See [esock.erl](github.com/sebastiw/esock/blob/main/src/esock.erl)
 
 ```mermaid
 ---
@@ -78,6 +36,51 @@ flowchart TD
     AS3-->P6
 ```
 
+How it relates internally with esock:
+```mermaid
+sequenceDiagram
+    participant sa as Server<br />Application;
+    participant se as Server<br />Esock;
+    participant sk as Server<br />Kernel;
+    participant ck as Client<br />Kernel;
+    participant ce as Client<br />Esock;
+    participant ca as Client<br />Application;
+    sa->>se: esock:create_ep();
+    se->>sk: esock_ep:start_link();
+    note over sk: socket();
+    note over sk: bind();
+
+    ca->>ce: esock:create_ep();
+    ce->>ck: esock_ep:start_link();
+    note over ck: socket();
+    ca->>ce: esock:create_assoc();
+    ce->>ck: esock_assoc:start_link();
+    note over ck: connect();
+    ck-x sk: SCTP INIT
+    ck-x sk: SCTP INIT
+    note over sk: listen();
+    ce-x sk: SCTP INIT
+    sa->>se: esock:register_owner();
+    se->>sk: esock_ep:register_owner();
+    note over sk: accept();
+    ck->>sk: SCTP INIT
+    sk->>ck: SCTP INIT ACK
+    ck->>sk: SCTP COOKIE
+    sk->>ck: SCTP COOKIE ACK
+    note over sk,ck: SCTP connection established
+    note over sk: sctp_peeloff();
+
+    ca->>ck: esock:send();
+    ck->>sk: SCTP DATA
+    sk->>sa: Owner ! data();
+
+    sa->>sk: esock:send();
+    sk->>ck: SCTP DATA
+    ck->>ca: Owner ! data();
+```
+
+
+
 # Example
 
 ```erlang
@@ -90,8 +93,11 @@ application:ensure_all_started(esock).
 %% connect sctp ep to remote address 127.0.0.1:30400
 esock:create_assoc(EP, [{127,0,0,1}], 30400, #{}).
 
-%% create another sctp ep which listen and accept for up to 4 clients
-{ok, EP2} = esock:create_ep(30400, #{accept => {accept, 4}}).
+%% create another sctp ep which listen
+{ok, EP2} = esock:create_ep(30400).
+
+%% Start accepting connections and receive messages to self().
+ok = esock:register_owner(EP, self(), {127,0,0,1}, 30400).
 ```
 
 # Receive

@@ -7,7 +7,7 @@ Application wide supervisor of endpoint processes.
 
 %% API
 -export([start_link/0,
-         start_child/4,
+         start_child/3,
          get_eps/0,
          get_ep/2,
          find_assoc/4
@@ -24,8 +24,8 @@ Application wide supervisor of endpoint processes.
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_child(LocalAddrs, LocalPort, LocalOpts, CallbackPid) ->
-    ChildOpts = [LocalAddrs, LocalPort, LocalOpts, CallbackPid],
+start_child(LocalAddrs, LocalPort, LocalOpts) ->
+    ChildOpts = [LocalAddrs, LocalPort, LocalOpts],
     supervisor:start_child(?MODULE, ep_spec(ChildOpts)).
 
 get_eps() ->
@@ -61,7 +61,7 @@ init(_) ->
 %% Helpers
 %% ---------------------------------------------------------------------------
 
-ep_spec([LocalAddrs, LocalPort, LocalOpts, _CallbackPid] = Args) ->
+ep_spec([LocalAddrs, LocalPort, LocalOpts] = Args) ->
     Proto = proplists:get_value(protocol, LocalOpts, sctp),
     #{id => {Proto, LocalAddrs, LocalPort},
       start => {esock_ep, start_link, Args},
